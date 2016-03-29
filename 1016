@@ -1,0 +1,253 @@
+#include <stdio.h>
+#include <iostream>
+#include <string>
+#include <cstring>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include<iomanip>
+
+using namespace std;
+
+double fee[24];
+int r_cnt;
+double day_fee = 0.0;
+int Month;
+
+struct Record{
+	string name;
+	int month;
+	int day;
+	int hour;
+	int minute;
+	bool is_online;
+};
+
+struct BillRecord{
+	struct Record* on;
+	struct Record* off;
+	int interval;
+	double cost;
+};
+
+bool less_cmp(const Record &r1, const Record &r2){
+	if (r1.day == r2.day){
+		if (r1.hour == r2.hour){
+			if (r1.minute == r2.minute){
+				printf("error\n");
+			}
+			else return r1.minute < r2.minute;
+		}
+		else return r1.hour < r2.hour;
+
+	}
+	else return r1.day < r2.day;
+}
+
+map<string, vector<Record>> record_map;
+//vector<int> cost;
+map<string, vector<BillRecord>> bill_map;
+
+
+
+
+int main()
+{
+	//输入费用
+	for (int i = 0; i < 24; i++){
+		int x;
+		scanf("%d", &x);
+		fee[i] = x / 100.0;
+		day_fee += fee[i] * 60;
+	}
+
+	//输入reocord数量
+	scanf("%d", &r_cnt);
+
+	//输入record
+	for (int i = 0; i < r_cnt; i++){
+		char name[21];
+		char datetime[20];
+		char online_str[20];
+		int month, day, hour, minute, is_online;
+		scanf("%s %s %s", name, datetime, online_str);
+		sscanf(datetime, "%d:%d:%d:%d", &month, &day, &hour, &minute);
+		//计算is_online
+		if (strcmp(online_str, "on-line") == 0){
+			is_online = 1;
+		}
+		else if (strcmp(online_str, "off-line") == 0){
+			is_online = 0;
+		}
+		else
+		{
+			printf("error");
+		}
+		
+		//添加进map对应name下vector
+		struct Record x = { name, month, day, hour, minute, is_online };
+		//printf("%s %d %d %d %d %d\n", name, month, day, hour, minute, is_online);
+		//printf("%s %d %d %d %d %d\n", x.name, x.month, x.day, x.hour, x.minute, x.is_online);
+		//cout << x.name << ' ' << x.month << ' ' << x.day << ' ' << x.hour << ' ' << x.minute << ' ' << x.is_online << endl;
+		
+		record_map[name].push_back(x);
+
+	}
+	//对每个name下的vector排序
+	map<string, vector<Record>>::iterator it;
+	vector<Record>::iterator j;
+	for (it = record_map.begin(); it != record_map.end(); it++){
+		sort((it->second).begin(), (it->second).end(), less_cmp);
+	}
+
+	//for (it = record_map.begin(); it != record_map.end(); it++){
+	//	for (j = (it->second).begin(); j != (it->second).end(); j++){
+	//		cout << (*j).name << ' ' << (*j).month << ' ' << (*j).day << ' ' << (*j).hour << ' ' << (*j).minute << ' ' << (*j).is_online << endl;
+	//	}
+	//}
+
+	for (it = record_map.begin(); it != record_map.end(); it++){
+		//遍历每个name
+		string name = it->first;
+		vector<Record> &vec = it->second;
+
+		//遍历每个name的vector中的每个record
+		for (j = vec.begin(); j < vec.end(); ){
+
+			//越界
+			if (j + 1 == vec.end()) break;
+
+			//记录每个name的cost
+			struct BillRecord record;
+			double &cost = record.cost;
+			int &interval = record.interval;
+			cost = 0.0;
+			interval = 0;
+
+			struct Record &t1 = *j;
+			struct Record &t2 = *(j+1);
+			if (t1.is_online == 1 && t2.is_online == 0){
+
+				//记录on、off两次的时间
+				record.on = &(*j);
+				record.off = &(*(j+1));
+
+				//j自增2
+				j += 2;
+
+				//三种情况，对齐之后计算cost
+				//只有min不同
+				if (t2.day == t1.day && t2.hour == t1.hour){
+					cost += fee[t1.hour] * (t2.minute - t1.minute);
+					interval += t2.minute - t1.minute;
+				}
+				//day相同，hour，min不同
+				else if (t2.day == t1.day && t2.hour != t1.hour){
+					cost += fee[t1.hour] * (60 - t1.minute)
+						+ fee[t2.hour] * t2.minute;
+					interval += 60 - t1.minute + t2.minute;
+					t1.hour++;
+
+					for (int i = t1.hour; i < t2.hour; i++){
+						cost += fee[i]*60;
+						interval += 60;
+					}
+
+					//恢复
+					t1.hour--;
+				}
+				//day也不同
+				else if (t2.day != t1.day){
+					cost += fee[t1.hour] * (60 - t1.minute)
+						+ fee[t2.hour] * t2.minute;
+					interval += 60 - t1.minute + t2.minute;
+					t1.hour++;
+
+					for (int i = t1.hour; i < 24; i++){
+						cost += fee[i] * 60;
+						interval += 60;
+					}
+					t1.day++;
+
+					for (int i = 0; i < t2.hour; i++){
+						cost += fee[i] * 60;
+						interval += 60;
+					}
+
+					cost += day_fee*(t2.day - t1.day);
+					interval += 24 * 60 *(t2.day - t1.day);
+
+					//恢复
+					t1.hour--;
+					t1.day--;
+				}
+
+				//保存一条billrecord
+				bill_map[name].push_back(record);
+
+
+				////保存cost
+				//cout << name << endl;
+				//cout << cost << endl;
+
+			}
+			else if (t1.is_online == 1 && t2.is_online == 1){
+				j++;
+			}
+			else if (t1.is_online == 0){
+				j++;
+			}
+		}
+	}
+
+	//输出
+	Month = (record_map.begin()->second).begin()->month;
+	//遍历每个name
+	 for (map<string, vector<BillRecord>>::iterator it = bill_map.begin(); it != bill_map.end(); it++){
+		
+		string name = it->first;
+		vector<BillRecord> &vec = it->second;
+
+		//总cost
+		double total_cost = 0.0;
+		cout << name << " " << setw(2) << setfill('0') << Month << endl;
+
+		//遍历每个billrecord
+		vector<BillRecord>::iterator j;
+		for (j = vec.begin(); j < vec.end(); j++){
+			total_cost += j->cost;
+			printf("%0.2d:%0.2d:%0.2d ", j->on->day, j->on->hour, j->on->minute);
+			printf("%0.2d:%0.2d:%0.2d ", j->off->day, j->off->hour, j->off->minute);
+			printf("%d ", j->interval);
+			printf("$%.2lf\n", j->cost);
+
+			//cout.width(2);
+			//cout.fill('0');
+			//cout.precision(2);
+
+			///*cout << setw(2) << setfill('0')*/
+			//cout
+			//	<< j->on->day << ":" << j->on->hour << ":" << j->on->minute
+			//	<< " "
+			//	<< j->off->day << ":" << j->off->hour << ":" << j->off->minute
+			//	<< " " << setiosflags(ios::fixed) << setprecision(2)
+			//	<< "$" << j->cost
+			//	<< endl;
+		}
+		//输出total_cost
+		printf("Total amount: $%.2lf\n", total_cost);
+
+	}
+
+
+
+
+	
+
+
+
+
+
+
+	return 0;
+}

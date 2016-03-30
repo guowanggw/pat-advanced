@@ -1,0 +1,142 @@
+#include <cstdio>
+#include <algorithm>
+#include <iostream>
+#include <vector>
+#include <cstring>
+
+
+using namespace std;
+
+int counter[100];	//柜台
+int gwclock = 8*3600;	//全局秒表
+int total_wait = 0; //总等待
+int N, K;
+
+struct Person{
+
+	int ahead_t;
+	int wait_t;
+	int serve_t;
+
+	int serving_t;	//剩余未服务时间
+
+	int arr_t;		//到达时间
+};
+
+
+vector<Person> bank_queue;	//队列
+int queue_front;  //队首位置
+
+
+bool greater_cmp(const Person &v1, const Person &v2){
+	return v1.arr_t > v2.arr_t;
+}
+
+
+
+
+
+int main(){
+	//初始化counter
+	memset(counter, -1, sizeof(counter));
+
+
+	scanf("%d %d", &N, &K);
+	for (int i = 0; i < N; i++)
+	{
+		int HH, MM, SS, serve_t;
+		scanf("%d:%d:%d %d", &HH, &MM, &SS, &serve_t);
+
+		//初始化person
+		struct Person person;
+		person.wait_t = 0;
+		person.serve_t = serve_t * 60;
+		person.serving_t = serve_t * 60;
+		person.arr_t = SS + MM * 60 + HH * 3600;
+
+		//是否8点前到,计算提前时间
+		if (HH < 8){
+			person.ahead_t = 8 * 3600 - person.arr_t;
+		}
+		else if (HH >= 8){
+			person.ahead_t = 0;
+		}
+
+		//是否5点后到
+		if (person.arr_t > 17 * 3600)	continue;
+
+		//入队
+		bank_queue.push_back(person);
+	}
+
+	//按时间排序
+	sort(bank_queue.begin(), bank_queue.end(), greater_cmp);
+
+	//while (!bank_queue.empty()){
+	//	struct Person &p = bank_queue.front();
+	//	bank_queue.pop_front();
+	//	printf("p.ahead_t: %d p.wait_t: %d p.serve_t: %d p.serving_t: %d p.arr_t: %d\n", p.ahead_t, p.wait_t, p.serve_t, p.serving_t, p.arr_t);
+	//}
+
+	//开始服务
+	queue_front = bank_queue.size() - 1; //设置队首
+	for (;;){
+		//记录柜台空置数量
+		int null_cnt = 0; 
+
+		//进入柜台
+		for (int i = 0; i < K; i++){
+			//柜台有空位，队伍不空，进入
+			if (counter[i] == -1){
+				null_cnt++;
+				//队伍不空
+				if (queue_front >= 0 && bank_queue[queue_front].arr_t <= gwclock){
+					counter[i] = queue_front;//柜台记录进入person编号
+					queue_front--; // 出队
+				}
+			}
+		}
+
+		//柜台、队列全空，退出循环
+		if (null_cnt == K && queue_front < 0) break;
+
+		//不空的柜台，时间过去1秒。时间到的出柜台
+		for (int i = 0; i < K; i++){
+			if(counter[i] != -1){
+				struct Person &person = bank_queue[counter[i]];
+				person.serving_t--;
+				if (person.serving_t == 0) counter[i] = -1;
+			}
+		}
+
+		//队列里小于gwclock的wait_t++
+		for (int i = 0; i <= queue_front; i++){
+			if (bank_queue[i].arr_t <= gwclock)	bank_queue[i].wait_t++;
+		}
+
+		//总时间++
+		gwclock++;
+
+	}
+
+
+	//输出
+	//printf("\n");
+	vector<Person>::iterator it;
+	for (it = bank_queue.begin(); it != bank_queue.end(); it++){
+		//计算等待时间+早到时间
+		int t = it->wait_t + it->ahead_t;
+		total_wait += t;
+		//printf("%d %.1lf\n", it->serve_t/60, t/60.0);
+	}
+
+	//printf("%d\n", total_wait);
+	//printf("size:%d\n", bank_queue.size());
+	printf("%.1lf\n", (double)total_wait /60.0/ bank_queue.size());
+	
+
+
+
+
+	return 0;
+}
